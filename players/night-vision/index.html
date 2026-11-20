@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Darkvision Player</title>
+<style>
+/* One column in the pack's colours: night-vision green on near-black.
+   A "scope" with a night-vision lens you move over a dark, misty scene (it breathes with the music),
+   then the deck (play, waveform, track list). */
+:root{
+  --bg:#030a05; --panel:#06130a; --line:#123320; --fg:#d6ffe0; --muted:#79b98d; --dim:#3d6b4d;
+  --accent:#5dff8f; --ink:#02100a;
+  --display:Verdana,"DejaVu Sans",Geneva,sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html{background:var(--bg)}
+body{background:var(--bg);color:var(--fg);font:14px/1.4 var(--body);margin:0}
+.wrap{max-width:680px;margin:0 auto;padding-block:14px 16px;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:11px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.free{background:var(--accent);color:var(--ink);font:700 13px/1 var(--display);letter-spacing:.06em;padding:6px 9px;border-radius:6px}
+h1{font:700 19px/1.1 var(--display);margin:0;letter-spacing:.04em;text-wrap:balance;flex:1;min-width:0;text-shadow:1.5px 0 rgba(0,255,214,.35),-1.5px 0 rgba(255,70,110,.28)}
+.by{font:700 11px/1 var(--display);letter-spacing:.12em;color:var(--muted)}
+.sum{font-family:var(--mono);font-size:12px;color:var(--accent);margin-top:-4px;font-variant-numeric:tabular-nums}
+
+/* scope */
+.scope{position:relative;height:200px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#010603;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none;outline-offset:2px}
+.scope canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.scope::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.34) 0,rgba(0,0,0,.34) 1px,transparent 1px,transparent 3px),
+             radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%)}
+.hud{position:absolute;left:10px;bottom:7px;right:10px;display:flex;justify-content:space-between;gap:10px;font:11px/1 var(--mono);color:var(--accent);opacity:.75;pointer-events:none;text-shadow:0 0 6px rgba(93,255,143,.5)}
+.hud .tip{transition:opacity .8s}
+.hud.used .tip{opacity:0}
+.tick{position:absolute;width:14px;height:14px;border:2px solid var(--accent);opacity:.55;pointer-events:none}
+.tick.a{left:7px;top:7px;border-right:0;border-bottom:0}.tick.b{right:7px;top:7px;border-left:0;border-bottom:0}
+
+.deck{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.now{display:flex;align-items:center;gap:12px}
+.big{appearance:none;flex:none;width:48px;height:48px;border-radius:50%;border:0;background:var(--accent);color:var(--ink);cursor:pointer;display:grid;place-items:center;box-shadow:0 0 14px rgba(93,255,143,.35)}
+.big svg,.skip svg{width:20px;height:20px;fill:currentColor}
+.big .pause{display:none}.big.on .pause{display:block}.big.on .play{display:none}
+.skip{appearance:none;flex:none;width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.skip svg{width:14px;height:14px}
+.skip:hover{color:var(--fg);border-color:var(--dim)}
+.meta{min-width:0;flex:1}
+.title{font:700 17px/1.15 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.facts{font-family:var(--mono);font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums;margin-top:4px}
+.wave{position:relative;height:44px;cursor:pointer;touch-action:none}
+.wave canvas{display:block;width:100%;height:100%}
+.list{display:flex;flex-direction:column;border-top:1px solid var(--line);max-height:var(--list-max,138px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--dim) transparent}
+.row{appearance:none;background:none;border:0;border-bottom:1px solid var(--line);color:var(--fg);text-align:left;cursor:pointer;display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:center;gap:10px;padding:7px 4px;font:inherit}
+.row:hover{background:color-mix(in srgb,var(--line) 55%,transparent)}
+.row .n{font-family:var(--mono);font-size:12px;color:var(--dim)}
+.row .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:8px}
+.row.cur .nm,.row.cur .n,.row.cur .t{color:var(--accent)}
+.eq{display:inline-flex;gap:2px;align-items:flex-end;height:12px}
+.eq i{width:3px;background:var(--accent);height:4px;animation:eq .8s ease-in-out infinite alternate}
+.eq i:nth-child(2){animation-delay:-.3s}.eq i:nth-child(3){animation-delay:-.55s}
+.paused .eq i{animation-play-state:paused}
+@keyframes eq{to{height:12px}}
+@media (prefers-reduced-motion:reduce){.eq i{animation:none;height:9px}}
+.controls{display:flex;align-items:center;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+.controls label{display:flex;align-items:center;gap:8px;cursor:pointer}
+input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;margin:0}
+input[type=range]{accent-color:var(--accent);width:110px}
+.keys{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
+footer{display:flex;justify-content:space-between;gap:8px 18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+footer a{color:var(--accent);text-decoration:none;font-weight:600}
+footer a:hover{text-decoration:underline}
+button:focus-visible,a:focus-visible,input:focus-visible,.wave:focus-visible,.scope:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.err{color:var(--accent)}
+@media (max-width:520px){.keys{display:none}h1{font-size:16px}.skip{display:none}.scope{height:170px}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <span class="free">FREE</span>
+    <h1>DARKVISION</h1>
+    <span class="by">ROB CAWLEY</span>
+  </header>
+  <div class="sum" id="sum">Dark cinematic ambient · 12 tracks · 51 min</div>
+
+  <div class="scope" id="scope" tabindex="0" role="img" aria-label="Night-vision scene. Move the pointer to shine the lens, click or tap to send a ping. It moves with the music.">
+    <canvas id="nv"></canvas>
+    <span class="tick a"></span><span class="tick b"></span>
+    <div class="hud" id="hud"><span>NV ● ON</span><span class="tip" id="tip">move to look · click to ping</span></div>
+  </div>
+
+  <section class="deck" aria-label="Now playing">
+    <div class="now">
+      <button class="skip" id="prev" aria-label="Previous track"><svg viewBox="0 0 20 20"><path d="M4 3h2v14H4zM17 3v14L7 10z"/></svg></button>
+      <button class="big" id="big" aria-label="Play">
+        <svg class="play" viewBox="0 0 20 20"><path d="M5 3l12 7-12 7z"/></svg>
+        <svg class="pause" viewBox="0 0 20 20"><rect x="4" y="3" width="4" height="14" rx="1"/><rect x="12" y="3" width="4" height="14" rx="1"/></svg>
+      </button>
+      <button class="skip" id="next" aria-label="Next track"><svg viewBox="0 0 20 20"><path d="M14 3h2v14h-2zM3 3v14l10-7z"/></svg></button>
+      <div class="meta">
+        <div class="title" id="title">&nbsp;</div>
+        <div class="facts" id="facts">&nbsp;</div>
+      </div>
+    </div>
+    <div class="wave" id="wave" tabindex="0" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><canvas id="cv"></canvas></div>
+    <div class="list" id="list"></div>
+    <div class="controls">
+      <label for="auto"><input type="checkbox" id="auto" checked> Play the next track</label>
+      <label for="vol">Volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.85"></label>
+      <span class="keys">space · ← → seek · n p</span>
+    </div>
+  </section>
+
+  <footer>
+    <span>Previews are 128 kbps MP3. The download has WAV and OGG.</span>
+    <a href="https://robcawley.com/roomtone/?src=itch-darkvision-player" target="_blank" rel="noopener">Hear Room Tone, my new album →</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const fmt = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"); };
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const audio = new Audio(); audio.preload = "none";
+  let tracks = [], cur = 0, dragging = false;
+
+  /* ---------- deck ---------- */
+  function load(i, play){
+    cur = (i + tracks.length) % tracks.length;
+    const t = tracks[cur];
+    audio.src = t.file; audio.volume = +$("vol").value;
+    $("title").textContent = t.title;
+    $("facts").textContent = `${String(t.n).padStart(2,"0")} / ${tracks.length} · 0:00 / ${fmt(t.seconds)}`;
+    if (play) audio.play().catch(()=>{});
+    makeScene(t.n); render();
+    const r = document.getElementById("track-" + t.n);
+    if (r){ const l = $("list"); const top = r.offsetTop - l.offsetTop; if (top < l.scrollTop || top + r.offsetHeight > l.scrollTop + l.clientHeight) l.scrollTop = Math.max(0, top - 2); }
+  }
+  function toggle(){ if (!audio.src) load(cur, true); else if (audio.paused) audio.play().catch(()=>{}); else audio.pause(); }
+  function buildList(){
+    const list = $("list"); list.innerHTML = "";
+    tracks.forEach((t, i) => {
+      const r = document.createElement("button");
+      r.className = "row"; r.id = "track-" + t.n;
+      r.innerHTML = `<span class="n">${String(t.n).padStart(2,"0")}</span><span class="nm"></span><span class="t"><span class="ind"></span>${fmt(t.seconds)}</span>`;
+      r.querySelector(".nm").textContent = t.title;
+      r.onclick = () => { if (i === cur && audio.src) toggle(); else load(i, true); };
+      list.appendChild(r);
+    });
+  }
+  function render(){
+    const on = audio.src && !audio.paused;
+    $("big").classList.toggle("on", !!on); $("big").setAttribute("aria-label", on ? "Pause" : "Play");
+    document.querySelectorAll(".row").forEach((r, i) => {
+      r.classList.toggle("cur", i === cur);
+      r.classList.toggle("paused", !on);
+      r.querySelector(".ind").innerHTML = i === cur && audio.src ? '<span class="eq"><i></i><i></i><i></i></span>' : "";
+    });
+  }
+
+  /* ---------- waveform ---------- */
+  const cv = $("cv"), c2 = cv.getContext("2d");
+  function size(){ const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1; cv.width = Math.round(r.width*d); cv.height = Math.round(r.height*d); }
+  new ResizeObserver(size).observe(cv); size();
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  let col = {};
+  function drawWave(){
+    const W = cv.width, H = cv.height, d = window.devicePixelRatio || 1, t = tracks[cur];
+    c2.clearRect(0,0,W,H);
+    if (!t) return;
+    const dur = audio.duration || t.seconds, ph = audio.src ? Math.min(1, audio.currentTime / dur) : 0;
+    const pk = t.peaks, n = pk.length, bw = W / n, mid = H/2;
+    for (let i = 0; i < n; i++){
+      const a = Math.max(0.03, pk[i]) * (H/2 - 2*d);
+      c2.fillStyle = i / n < ph ? col.accent : col.rest;
+      c2.fillRect(i*bw + bw*0.15, mid - a, Math.max(1, bw*0.7), a*2);
+    }
+    if (audio.src){ c2.fillStyle = col.fg; c2.fillRect(Math.round(ph*W), 0, Math.max(1.5,1.5*d), H); }
+    $("facts").textContent = `${String(t.n).padStart(2,"0")} / ${tracks.length} · ${fmt(audio.currentTime||0)} / ${fmt(dur)}`;
+    $("wave").setAttribute("aria-valuenow", Math.round(ph*100));
+  }
+  function seekAt(x){
+    const r = cv.getBoundingClientRect(), f = Math.min(1, Math.max(0, (x - r.left) / r.width));
+    const go = () => { audio.currentTime = f * (audio.duration || tracks[cur].seconds); };
+    if (!audio.src){ load(cur, true); audio.addEventListener("loadedmetadata", go, {once:true}); }
+    else if (audio.readyState < 1){ audio.addEventListener("loadedmetadata", go, {once:true}); audio.play().catch(()=>{}); }
+    else { go(); if (audio.paused) audio.play().catch(()=>{}); }
+  }
+  $("wave").addEventListener("pointerdown", e => { dragging = true; $("wave").setPointerCapture(e.pointerId); seekAt(e.clientX); });
+  $("wave").addEventListener("pointermove", e => { if (dragging) seekAt(e.clientX); });
+  $("wave").addEventListener("pointerup", () => dragging = false);
+
+  /* ---------- night-vision scope ---------- */
+  const nv = $("nv"), g = nv.getContext("2d"), sc = $("scope");
+  const scene = document.createElement("canvas"), sg = scene.getContext("2d");
+  const mask = document.createElement("canvas"), mg = mask.getContext("2d");
+  let W = 0, H = 0;
+  const SCALE = 2;                                   // render at half size: chunky, soft, cheap
+  function nvSize(){
+    const r = sc.getBoundingClientRect();
+    W = Math.max(60, Math.round(r.width / SCALE)); H = Math.max(40, Math.round(r.height / SCALE));
+    for (const c of [nv, scene, mask]){ c.width = W; c.height = H; }
+  }
+  new ResizeObserver(nvSize).observe(sc); nvSize();
+
+  function rng(seed){ let s = seed * 2654435761 >>> 0 || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+  let forms = [], moon = null, mist = [];
+  function makeScene(n){
+    const R = rng(n * 977 + 13);
+    forms = []; const count = 4 + Math.floor(R() * 3);
+    for (let i = 0; i < count; i++){
+      const depth = R();                              // 0 far .. 1 near
+      forms.push({x: R(), w: 0.04 + depth * 0.07, h: 0.35 + R() * 0.4, depth, ph: R() * 6.28, kind: R() < 0.22 ? "dome" : "pillar"});
+    }
+    forms.sort((a, b) => a.depth - b.depth);
+    moon = {x: 0.18 + R() * 0.64, y: 0.22 + R() * 0.2, r: 0.1 + R() * 0.07};
+    mist = Array.from({length: 5}, () => ({x: R(), y: 0.55 + R() * 0.4, r: 0.25 + R() * 0.3, sp: (R() - .5) * 0.02, a: 0.07 + R() * 0.07}));
+  }
+  makeScene(1);
+
+  let en = 0.25;                                      // smoothed energy 0..1
+  function energyNow(){
+    const t = tracks[cur];
+    if (!t || !audio.src || audio.paused) return 0.22 + 0.04 * Math.sin(performance.now() / 1400);
+    const i = Math.min(t.energy.length - 1, Math.max(0, Math.floor(audio.currentTime * 4)));
+    return t.energy[i];
+  }
+  function drawScene(sg, time, e){
+    sg.globalCompositeOperation = "source-over";
+    sg.fillStyle = "#010a04"; sg.fillRect(0, 0, W, H);
+    const horizon = H * 0.82;
+    // moon / lens glow
+    const mx = moon.x * W, my = moon.y * H, mr = moon.r * H * (1.35 + 0.2 * e);
+    let gr = sg.createRadialGradient(mx, my, 0, mx, my, mr * 1.8);
+    gr.addColorStop(0, `rgba(120,255,160,${0.55 + 0.3 * e})`); gr.addColorStop(0.5, `rgba(60,200,100,${0.22 + 0.2 * e})`); gr.addColorStop(1, "rgba(0,0,0,0)");
+    sg.fillStyle = gr; sg.fillRect(0, 0, W, H);
+    // forms: soft vertical gradients; heights breathe with the music
+    for (const f of forms){
+      const x = f.x * W, w = f.w * W, top = horizon - f.h * H * (0.92 + 0.14 * e + 0.03 * Math.sin(time / 2200 + f.ph));
+      const a = 0.20 + f.depth * 0.5 + 0.2 * e;
+      const lg = sg.createLinearGradient(0, top, 0, horizon);
+      lg.addColorStop(0, `rgba(70,230,120,${a})`); lg.addColorStop(1, `rgba(10,70,30,${a * 0.6})`);
+      sg.fillStyle = lg;
+      if (f.kind === "dome"){ sg.beginPath(); sg.ellipse(x, horizon, w * 1.3, (horizon - top) * 0.7, 0, Math.PI, 0); sg.fill(); }
+      else { const r = Math.min(w / 2, 5); sg.beginPath(); sg.roundRect ? sg.roundRect(x - w / 2, top, w, horizon - top + 2, r) : sg.rect(x - w / 2, top, w, horizon - top + 2); sg.fill(); }
+    }
+    // ground
+    const gg = sg.createLinearGradient(0, horizon - 6, 0, H);
+    gg.addColorStop(0, "rgba(40,160,80,.55)"); gg.addColorStop(1, "rgba(2,20,8,.9)");
+    sg.fillStyle = gg; sg.fillRect(0, horizon - 2, W, H - horizon + 2);
+    // drifting mist
+    for (const m of mist){
+      const x = ((m.x + time * m.sp / 1000) % 1.4 + 1.4) % 1.4 - 0.2;
+      const rr = m.r * W * 0.5; const mg2 = sg.createRadialGradient(x * W, m.y * H, 0, x * W, m.y * H, rr);
+      mg2.addColorStop(0, `rgba(90,230,140,${m.a + 0.06 * e})`); mg2.addColorStop(1, "rgba(0,0,0,0)");
+      sg.fillStyle = mg2; sg.fillRect(x * W - rr, m.y * H - rr, rr * 2, rr * 2);
+    }
+  }
+
+  // lens + pings
+  const lens = {x: 0.5, y: 0.5, tx: 0.5, ty: 0.5};
+  let idleSince = 0, pings = [], lastHit = -1, glitch = 0;
+  function ping(x, y){ pings.push({x, y, t: performance.now()}); if (pings.length > 4) pings.shift(); glitch = Math.min(1, glitch + 0.6); $("hud").classList.add("used"); }
+  function point(e){ const r = sc.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; }
+  sc.addEventListener("pointermove", e => { [lens.tx, lens.ty] = point(e); idleSince = performance.now(); $("hud").classList.add("used"); });
+  sc.addEventListener("pointerdown", e => { const [x, y] = point(e); lens.tx = x; lens.ty = y; idleSince = performance.now(); ping(x, y); });
+  sc.addEventListener("keydown", e => {
+    const k = e.key, s = 0.06; let used = true;
+    if (k === "ArrowLeft") lens.tx = Math.max(0, lens.tx - s); else if (k === "ArrowRight") lens.tx = Math.min(1, lens.tx + s);
+    else if (k === "ArrowUp") lens.ty = Math.max(0, lens.ty - s); else if (k === "ArrowDown") lens.ty = Math.min(1, lens.ty + s);
+    else if (k === "Enter") ping(lens.x, lens.y); else used = false;
+    if (used){ e.preventDefault(); e.stopPropagation(); idleSince = performance.now(); }
+  });
+
+  function frame(now){
+    requestAnimationFrame(frame);
+    if (!W) return;
+    en += (energyNow() - en) * 0.12;
+    const e = en;
+    // autopilot: when nobody is looking, the lens drifts on its own
+    if (now - idleSince > 4000){
+      const t = now / 1000; lens.tx = 0.5 + 0.36 * Math.sin(t * 0.23) * Math.cos(t * 0.11); lens.ty = 0.52 + 0.22 * Math.sin(t * 0.31 + 1);
+      if (!reduce && Math.floor(now / 7000) !== Math.floor((now - 16) / 7000)) ping(lens.x, lens.y);
+    }
+    lens.x += (lens.tx - lens.x) * 0.12; lens.y += (lens.ty - lens.y) * 0.12;
+    drawScene(sg, now, e);
+
+    // reveal mask: soft lens + expanding rings
+    mg.globalCompositeOperation = "source-over"; mg.clearRect(0, 0, W, H);
+    const lx = lens.x * W, ly = lens.y * H, lr = H * (0.55 + 0.1 * e);
+    let gr = mg.createRadialGradient(lx, ly, lr * 0.15, lx, ly, lr);
+    gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(0.6, "rgba(0,0,0,.75)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+    mg.fillStyle = gr; mg.fillRect(0, 0, W, H);
+    pings = pings.filter(p => now - p.t < 2200);
+    for (const p of pings){
+      const k = (now - p.t) / 2200, rad = k * W * 0.75, wd = 16 + 26 * k, a = (1 - k) * 0.95;
+      const r0 = Math.max(0, rad - wd), r1 = rad + wd;
+      const pg = mg.createRadialGradient(p.x * W, p.y * H, r0, p.x * W, p.y * H, r1);
+      pg.addColorStop(0, "rgba(0,0,0,0)"); pg.addColorStop(0.5, `rgba(0,0,0,${a})`); pg.addColorStop(1, "rgba(0,0,0,0)");
+      mg.fillStyle = pg; mg.fillRect(0, 0, W, H);
+    }
+    // composite: the whole scene faintly (shapes you can just guess at), then the lit part through the lens
+    g.globalCompositeOperation = "source-over"; g.fillStyle = "#010603"; g.fillRect(0, 0, W, H);
+    g.globalAlpha = 0.10 + 0.08 * e; g.drawImage(scene, 0, 0); g.globalAlpha = 1;
+    sg.globalCompositeOperation = "destination-in"; sg.drawImage(mask, 0, 0); sg.globalCompositeOperation = "source-over";
+    g.globalAlpha = 0.95; g.drawImage(scene, 0, 0); g.globalAlpha = 1;
+
+    // the sonar rings themselves, so a ping reads even over an empty patch of the scene
+    g.lineWidth = 1;
+    for (const p of pings){ const k = (now - p.t) / 2200; g.strokeStyle = `rgba(130,255,170,${(1 - k) * 0.6})`; g.beginPath(); g.arc(p.x * W, p.y * H, k * W * 0.75, 0, 6.2832); g.stroke(); }
+
+    // rolling bar, speckle, glitch
+    const by = ((now / 28) % (H + 60)) - 30; const bg = g.createLinearGradient(0, by - 14, 0, by + 14);
+    bg.addColorStop(0, "rgba(93,255,143,0)"); bg.addColorStop(0.5, `rgba(93,255,143,${reduce ? 0 : 0.07})`); bg.addColorStop(1, "rgba(93,255,143,0)");
+    g.fillStyle = bg; g.fillRect(0, by - 14, W, 28);
+    g.fillStyle = "rgba(120,255,160,.35)";
+    for (let i = 0; i < 26; i++) g.fillRect(Math.random() * W | 0, Math.random() * H | 0, 1, 1);
+    const hits = tracks[cur] && audio.src && !audio.paused ? tracks[cur].hits : null;
+    if (hits){ const t = audio.currentTime; const idx = hits.findIndex(h => h[0] > t - 0.05 && h[0] <= t + 0.05);
+      if (idx !== -1 && idx !== lastHit){ lastHit = idx; glitch = Math.min(1, glitch + 0.25 + 0.5 * hits[idx][1]); } }
+    glitch *= 0.88;
+    if (!reduce && glitch > 0.12){
+      const n = 1 + Math.floor(glitch * 3);
+      for (let i = 0; i < n; i++){
+        const sy = Math.random() * H | 0, sh = 2 + Math.random() * 7 * glitch | 0, dx = (Math.random() - 0.5) * 22 * glitch;
+        g.drawImage(nv, 0, sy, W, sh, dx, sy, W, sh);
+      }
+    }
+    drawWave();
+  }
+  audio.addEventListener("play", render); audio.addEventListener("pause", render);
+  audio.addEventListener("ended", () => { if ($("auto").checked && cur < tracks.length - 1) load(cur + 1, true); else render(); });
+  audio.addEventListener("error", () => { if (audio.src) $("facts").innerHTML = '<span class="err">Couldn\'t load this track. Check your connection and try again.</span>'; });
+  $("big").onclick = toggle;
+  $("prev").onclick = () => load(audio.currentTime > 3 ? cur : cur - 1, true);
+  $("next").onclick = () => load(cur + 1, true);
+  $("vol").oninput = e => { audio.volume = +e.target.value; };
+  document.addEventListener("keydown", e => {
+    if (e.defaultPrevented || e.target.tagName === "INPUT") return;
+    if (e.code === "Space"){ e.preventDefault(); toggle(); }
+    else if (e.key === "ArrowRight" && audio.src){ audio.currentTime = Math.min((audio.duration||0) - 0.5, audio.currentTime + 10); }
+    else if (e.key === "ArrowLeft" && audio.src){ audio.currentTime = Math.max(0, audio.currentTime - 10); }
+    else if (e.key === "n"){ load(cur + 1, true); }
+    else if (e.key === "p"){ load(cur - 1, true); }
+  });
+
+  fetch("tracks.json").then(r => r.json()).then(d => {
+    tracks = d;
+    col = {fg:css("--fg"), accent:css("--accent"), rest:"rgba(214,255,224,.34)"};
+    const mins = Math.round(tracks.reduce((a, t) => a + t.seconds, 0) / 60);
+    $("sum").textContent = `Dark cinematic ambient · ${tracks.length} tracks · ${mins} min`;
+    buildList(); load(0, false); audio.removeAttribute("src"); render(); requestAnimationFrame(frame);
+  }).catch(() => { $("title").innerHTML = '<span class="err">Couldn\'t load the track list. Reload the page to try again.</span>'; });
+})();
+</script>
+
+</body>
+</html>

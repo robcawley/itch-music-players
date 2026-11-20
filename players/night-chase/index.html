@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>All this happened, more or less · Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+/* 8-bit night chase. The music drives it: loudness sets the speed, kicks rock the cars,
+   the track's sections set the heat. Stage 1 is the theatre district, stage 2 the freeway. */
+:root{
+  --bg:#07060c; --fg:#f3eefe; --muted:#9a93b5; --dim:#4f4a6a; --edge:#2a2640;
+  --a:#ff4fa3; --b:#ffcc66; --c:#38e1d0;
+  --px:"Press Start 2P",ui-monospace,Menlo,monospace; --vt:"VT323",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+body.s2{--a:#6fe3ff; --b:#ffa63d; --c:#ff6a5a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:19px/1.15 var(--vt);overflow:hidden}
+.wrap{height:100%;max-width:680px;margin:0 auto;padding:14px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:10px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.tag{display:inline-block;font:8px/1 var(--px);letter-spacing:.08em;color:var(--bg);background:var(--b);padding:5px 6px 4px}
+h1{margin:9px 0 7px;font:13px/1.4 var(--px);color:var(--fg);text-shadow:2px 2px 0 var(--a)}
+.sub{color:var(--c);letter-spacing:.03em}
+.code{font:7px/1.9 var(--px);color:var(--dim);text-align:right;white-space:nowrap;padding-top:2px}
+.tabs{display:flex;gap:8px}
+.tab{flex:1;min-width:0;appearance:none;cursor:pointer;text-align:left;background:#0f0d18;color:var(--muted);border:2px solid var(--edge);padding:7px 8px 6px;font:19px/1 var(--vt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tab b{font:8px/1 var(--px);color:var(--dim);margin-right:7px;vertical-align:1px}
+.tab:hover{color:var(--fg)}
+.tab.on{color:var(--fg);border-color:var(--a)}
+.tab.on b{color:var(--a)}
+.stage{position:relative;border:2px solid var(--edge);background:#000;line-height:0}
+#game{width:100%;aspect-ratio:304/128;image-rendering:pixelated;image-rendering:crisp-edges;display:block;touch-action:manipulation;cursor:pointer}
+.scan{position:absolute;inset:0;pointer-events:none;opacity:.18;background:repeating-linear-gradient(0deg,rgba(0,0,0,.7) 0 1px,transparent 1px 3px)}
+.hud{position:absolute;top:7px;left:8px;right:8px;display:flex;justify-content:space-between;gap:8px;font:8px/1 var(--px);color:#fff;text-shadow:1px 1px 0 #000;pointer-events:none}
+.heat i{display:inline-block;width:8px;height:8px;margin-left:3px;background:rgba(255,255,255,.18);vertical-align:-1px}
+.heat i.on{background:#ff3b3b;box-shadow:0 0 6px #ff3b3b}
+.msg{position:absolute;left:0;right:0;top:40%;text-align:center;font:12px/1.5 var(--px);color:var(--b);text-shadow:2px 2px 0 #000;pointer-events:none;opacity:0;transition:opacity .15s}
+.msg.show{opacity:1}
+.msg.blink{animation:bk 1s steps(2) infinite}
+@keyframes bk{50%{opacity:0}}
+.hint{position:absolute;right:8px;bottom:7px;font:7px/1 var(--px);color:rgba(255,255,255,.5);text-shadow:1px 1px 0 #000;pointer-events:none}
+.hint.auto{left:8px;right:auto}
+.deck{display:flex;align-items:center;gap:12px}
+.big{appearance:none;flex:none;width:54px;height:54px;cursor:pointer;display:grid;place-items:center;background:#0f0d18;color:var(--b);border:3px solid var(--b);box-shadow:4px 4px 0 var(--a)}
+.big:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--a)}
+.big svg{width:20px;height:20px;fill:currentColor;shape-rendering:crispEdges}
+.big .pause{display:none}.big.on .pause{display:block}.big.on .play{display:none}
+.read{min-width:0;flex:1;display:flex;flex-direction:column;gap:7px}
+.time{font:15px/1 var(--px);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.time small{font-size:9px;color:var(--muted)}
+.status{color:var(--muted);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status b{color:var(--c);font-weight:400}
+.route{border:2px solid var(--edge);background:#0b0a13;cursor:pointer;touch-action:none;line-height:0}
+#route{width:100%;aspect-ratio:304/22;image-rendering:pixelated;display:block}
+.controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;color:var(--muted);text-transform:uppercase}
+.controls label{display:flex;align-items:center;gap:7px;cursor:pointer}
+input[type=checkbox]{accent-color:var(--a);width:14px;height:14px;margin:0}
+input[type=range]{accent-color:var(--b);width:100px}
+.keys{margin-left:auto;color:var(--dim)}
+footer{display:flex;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;color:var(--muted);border-top:2px solid var(--edge);padding-top:8px}
+footer a{color:var(--a);text-decoration:none}
+footer a:hover{text-decoration:underline}
+button:focus-visible,a:focus-visible,input:focus-visible,.route:focus-visible,#game:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+.err{color:#ff6a5a}
+@media (max-width:540px){.code,.keys{display:none}h1{font-size:11px}.tab{font-size:17px}}
+@media (prefers-reduced-motion:reduce){.msg.blink{animation:none}}
+</style>
+</head>
+<body class="s1">
+<div class="wrap">
+  <header>
+    <div>
+      <span class="tag">FREE · ROYALTY-FREE</span>
+      <h1>All this happened, more or less</h1>
+      <div class="sub" id="sub">Rob Cawley · 2 tracks</div>
+    </div>
+    <div class="code" id="code">CASE 0419<br>NIGHT SHIFT<br>UNIT 7 IN PURSUIT</div>
+  </header>
+  <div class="tabs" id="tabs"></div>
+  <div class="stage">
+    <canvas id="game" tabindex="0" aria-label="Car chase driven by the music. Up and down arrows, or tap above or below the car, to change lane."></canvas>
+    <div class="scan"></div>
+    <div class="hud"><span class="heat" id="heat">HEAT<i></i><i></i><i></i><i></i></span><span id="speedo">000 KM/H</span></div>
+    <div class="msg" id="msg"></div>
+    <div class="hint auto" id="auto">AUTOPILOT</div>
+    <div class="hint" id="hint">↑↓ OR TAP: CHANGE LANE</div>
+  </div>
+  <div class="deck">
+    <button class="big" id="big" aria-label="Play">
+      <svg class="play" viewBox="0 0 20 20"><path d="M6 3l10 7-10 7z"/></svg>
+      <svg class="pause" viewBox="0 0 20 20"><rect x="4" y="3" width="4" height="14"/><rect x="12" y="3" width="4" height="14"/></svg>
+    </button>
+    <div class="read">
+      <div class="time" id="time">00:00 <small>/ 00:00</small></div>
+      <div class="status" id="status"><b>STANDBY</b> · press play to start the chase</div>
+    </div>
+  </div>
+  <div class="route" id="routeBox" tabindex="0" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><canvas id="route"></canvas></div>
+  <div class="controls">
+    <label for="loop"><input type="checkbox" id="loop"> Loop track</label>
+    <label for="vol">Volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.85"></label>
+    <span class="keys">space play · ←→ seek · 1 2 track</span>
+  </div>
+  <footer>
+    <span>Preview is 160 kbps MP3. The download has WAV and OGG.</span>
+    <a href="https://robcawley.com/roomtone/?src=itch-allthis-player" target="_blank" rel="noopener">Hear Room Tone, my new album →</a>
+  </footer>
+</div>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- stages ----------
+  const STAGES = [
+    { name: "THEATRE DISTRICT", code: "CASE 0419<br>THEATRE DISTRICT<br>UNIT 7 IN PURSUIT",
+      sky: ["#0c0618", "#2a0f3e", "#4a1a52"], star: "#c9b6ff", city: "#170c26", cityWin: "#ffb347", cityWin2: "#ff4fa3",
+      kerb: ["#3b2c52", "#241a35"], road: "#1a1724", dash: "#c9b98a", pave: "#221b2f",
+      lines: ["curtain up", "a car behind you", "pursuit", "full pursuit · air unit up"], end: "end of the first act" },
+    { name: "THE FREEWAY", code: "CASE 0419<br>NORTHBOUND<br>ALL UNITS",
+      sky: ["#03101a", "#0b2a35", "#5a2b1c"], star: "#9fe8ff", city: "#081a22", cityWin: "#6fe3ff", cityWin2: "#ffa63d",
+      kerb: ["#4a4a3a", "#2a2a22"], road: "#14181b", dash: "#e8e2c8", pave: "#1b2124",
+      lines: ["engine running", "on the move", "pursuit", "everything is moving"], end: "they lost you" }
+  ];
+  const HEATCOL = ["#3a5a7a", "#ffcc66", "#ff8a3d", "#ff3b3b"];
+
+  // ---------- tiny 3x5 pixel font for signs ----------
+  const F = {A:"010101111101101",B:"110101110101110",C:"011100100100011",D:"110101101101110",E:"111100110100111",F:"111100110100100",G:"011100101101011",H:"101101111101101",I:"111010010010111",K:"101101110101101",L:"100100100100111",M:"101111111101101",N:"110101101101101",O:"010101101101010",P:"110101110100100",R:"110101110101101",S:"011100010001110",T:"111010010010010",U:"101101101101111",V:"101101101101010",W:"101101111111101",X:"101101010101101",Y:"101101010010010",
+    "0":"111101101101111","1":"010110010010111","2":"110001010100111","3":"110001010001110","4":"101101111001001","5":"111100110001110","6":"011100111101111","7":"111001010010010","8":"111101111101111","9":"111101111001110"," ":"000000000000000",".":"000000000000010","-":"000000111000000",">":"100010001010100"};
+  function ptext(c, s, x, y, col){ c.fillStyle = col; for (const ch of s){ const m = F[ch] || F[" "]; for (let i = 0; i < 15; i++) if (m[i] === "1") c.fillRect(x + i % 3, y + (i / 3 | 0), 1, 1); x += 4; } }
+  function ptextV(c, s, x, y, col){ c.fillStyle = col; for (const ch of s){ const m = F[ch] || F[" "]; for (let i = 0; i < 15; i++) if (m[i] === "1") c.fillRect(x + i % 3, y + (i / 3 | 0), 1, 1); y += 6; } }
+
+  // ---------- sprites (front faces right) ----------
+  const COUPE = [
+    "..........KKKKKKKK........",
+    ".........KGGGKGGGGK.......",
+    "........KGGGGKGGGGGK......",
+    "..KKKKKKBBBBBBBBBBBBKKKK..",
+    ".KHHHHHHHHHHHHHHHHHHHHHHK.",
+    "KRBBBBBBBBBBBBBBBBBBBBBBYK",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDK",
+    ".KKKKKKKKKKKKKKKKKKKKKKKK."];
+  const SEDAN = [
+    "........KKKKKKKKKKK.........",
+    ".......KGGGKGGGGKGGK........",
+    "......KGGGGKGGGGKGGGK.......",
+    "..KKKKBBBBBBBBBBBBBBBKKKKK..",
+    ".KHHHHHHHHHHHHHHHHHHHHHHHHK.",
+    "KRBBBBBBBBBBBBBBBBBBBBBBBBYK",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    ".KKKKKKKKKKKKKKKKKKKKKKKKKK."];
+  const VAN = [
+    "KKKKKKKKKKKKKKKKKKKKKKKKK.....",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBK....",
+    "KHHHHHHHHHHHHHHHHHHHHHHHBGK...",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBGGK..",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBGGGK.",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBBBBBK",
+    "KRBBBBBBBBBBBBBBBBBBBBBBBBBBYK",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    ".KKKKKKKKKKKKKKKKKKKKKKKKKKKK."];
+  const TRUCK = [
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK...........",
+    "KHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHK...........",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBK.KKKKKKK...",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBK.KCCCCGGK..",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBK.KCCCCGGGK.",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBK.KCCCCCCCCK",
+    "KBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBKKKCCCCCCCYK",
+    "KRDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    ".KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK."];
+  const HELI = [
+    "......KKKKKKK.......",
+    ".KK..KBBBBBGGK......",
+    "KBBKKBBBBBBGGGK.....",
+    ".KKBBBBBBBBBBBBK....",
+    "....KBBBBBBBBBK.....",
+    ".....KKKKKKKKK......",
+    "....K.......K......."];
+  const PAL = {
+    player: {K:"#0b0a10",G:"#3d6f93",B:"#d8323c",H:"#ff5a5f",D:"#7e1824",R:"#ff2d2d",Y:"#fff3a0"},
+    police: {K:"#0b0a10",G:"#34445f",B:"#e9e9f0",H:"#ffffff",D:"#15151c",R:"#ff2d2d",Y:"#fff3a0"},
+    heli:   {K:"#0b0a10",G:"#5a7fa0",B:"#2b2f3a",H:"#3a3f4c"},
+    traffic: [
+      {B:"#2aa198",H:"#43c4b9",D:"#17645e"},{B:"#c8b48a",H:"#e2d1a8",D:"#7a6b4d"},{B:"#8a8fa0",H:"#aab0c2",D:"#4d5160"},
+      {B:"#6b7a3a",H:"#8b9c52",D:"#3c4520"},{B:"#6a4c93",H:"#8a6bb5",D:"#3c2a57"},{B:"#d9822b",H:"#f0a14f",D:"#7d4613"},{B:"#3b6fb6",H:"#5a8fd6",D:"#1f3f6b"}]
+  };
+  const sprCache = new Map();
+  function spr(rows, pal, key){
+    if (sprCache.has(key)) return sprCache.get(key);
+    const c = document.createElement("canvas"); c.width = rows[0].length; c.height = rows.length;
+    const x = c.getContext("2d");
+    rows.forEach((r, y) => { for (let i = 0; i < r.length; i++){ const p = pal[r[i]] || (r[i] === "C" ? pal.B : null); if (p){ x.fillStyle = p; x.fillRect(i, y, 1, 1); } } });
+    sprCache.set(key, c); return c;
+  }
+  const BASE = {K:"#0b0a10",G:"#2e4a62",R:"#ff2d2d",Y:"#fff3a0"};
+  const KINDS = [
+    {rows: SEDAN, w: 28, h: 8, wheels: [4, 21], own: 0.42},
+    {rows: COUPE, w: 26, h: 8, wheels: [4, 19], own: 0.48},
+    {rows: VAN, w: 30, h: 9, wheels: [5, 22], own: 0.36},
+    {rows: TRUCK, w: 43, h: 9, wheels: [5, 12, 33], own: 0.30}
+  ];
+
+  // ---------- canvas ----------
+  const W = 304, H = 128, ROAD = 78, LANE = [89, 102, 115];
+  const cv = $("game"), g = cv.getContext("2d"); cv.width = W; cv.height = H; g.imageSmoothingEnabled = false;
+  const rc = $("route"), r2 = rc.getContext("2d"); rc.width = 304; rc.height = 22;
+
+  // ---------- audio + state ----------
+  const audio = new Audio(); audio.preload = "metadata"; audio.volume = 0.85;
+  let data = null, cur = 0, T = null, S = STAGES[0], skyline = [], skyW = 0, started = false, msgTimer = 0, lastNow = performance.now(), dragging = false, advanceAt = 0;
+  let st;
+  function fresh(){
+    return { x: 0, dist: 0, speed: 0, laneF: 1, target: 1, lastInput: -1e9, lastSwitch: -99, px: 150, bob: 0, boost: 0,
+      traffic: [], parts: [], shake: 0, beat: -1e9, ki: 0, hi: 0, flash: 0, heatF: 0, heat: 0, lastT: 0, ending: false, got: false,
+      police: [0, 1, 2].map(k => ({ x: -60 - k * 40, laneF: [1, 0, 2][k], target: [1, 0, 2][k] })),
+      heli: { x: -60, y: 16 }, near: 0, dents: 0 };
+  }
+  st = fresh();
+
+  function seeded(n){ let s = n; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+  function buildSkyline(){
+    const rnd = seeded(cur ? 99 : 7); skyline = []; let x = 0;
+    for (const p of T.peaks){ const w = 7 + Math.floor(rnd() * 9); skyline.push({ x, w, h: 10 + Math.round(Math.pow(p, 0.85) * 44), k: Math.floor(rnd() * 1e6), ant: rnd() < 0.1 }); x += w + (rnd() < 0.3 ? 2 : 0); }
+    skyW = x;
+  }
+  const energyAt = t => { if (!T) return 0; const e = T.energy, f = t * 4, i = Math.floor(f); if (i >= e.length - 1) return e[e.length - 1] || 0; if (i < 0) return e[0]; return e[i] + (e[i + 1] - e[i]) * (f - i); };
+  const heatAt = t => { let h = 0; for (const s of T.heat) if (s[0] <= t) h = s[1]; return h; };
+  const bsearch = (arr, t) => { let lo = 0, hi = arr.length; while (lo < hi){ const m = (lo + hi) >> 1; if (arr[m][0] < t) lo = m + 1; else hi = m; } return lo; };
+
+  function msg(text, ms, blink){ const m = $("msg"); m.textContent = text; m.classList.add("show"); m.classList.toggle("blink", !!blink); clearTimeout(msgTimer); if (ms) msgTimer = setTimeout(() => m.classList.remove("show"), ms); }
+  function hideMsg(){ $("msg").classList.remove("show"); }
+
+  // ---------- particles ----------
+  function puff(x, y, n, col, spd, life){ if (still) return; for (let i = 0; i < n; i++) st.parts.push({ x, y, vx: -spd * (0.4 + Math.random()), vy: (Math.random() - 0.6) * spd * 0.3, life, max: life, col: col[i % col.length] }); }
+  function sparks(x, y){ if (still) return; for (let i = 0; i < 14; i++) st.parts.push({ x, y, vx: (Math.random() - 0.7) * 120, vy: (Math.random() - 0.8) * 70, life: 0.35, max: 0.35, col: ["#fff3a0", "#ffb347", "#ff6a3d"][i % 3] }); }
+
+  // ---------- simulation ----------
+  function laneFree(lane, x0, x1, list){ return !list.some(c => !c.hit && c.lane === lane && c.x + c.w > x0 && c.x < x1); }
+  function onBeat(b, t){
+    const e = energyAt(t);
+    st.bob = 1;
+    if (st.ending || t < 3) return;
+    const p = [0.16, 0.26, 0.36, 0.48][st.heat] * (0.55 + e * 0.8);
+    if (Math.random() < p){
+      const busy = new Set(st.traffic.filter(c => c.x > W - 70).map(c => c.lane));
+      if (busy.size >= 2) return;
+      const free = [0, 1, 2].filter(l => !busy.has(l));
+      const lane = free[Math.floor(Math.random() * free.length)];
+      const r = Math.random(), kind = r < 0.5 ? 0 : r < 0.72 ? 1 : r < 0.9 ? 2 : 3;
+      const k = KINDS[kind], pi = Math.floor(Math.random() * PAL.traffic.length);
+      st.traffic.push({ x: W + 6, lane, kind, w: k.w, pal: pi, own: k.own, hit: false, knock: 0, passed: false });
+    }
+  }
+  function crash(c, who){
+    c.hit = true; sparks(c.x + (who === "player" ? 0 : c.w / 2), LANE[c.lane] - 4);
+    if (who === "player"){ st.dents++; st.shake = Math.max(st.shake, 4); msg("SCRAPED", 700); for (const p of st.police) p.x += 14; }
+  }
+  function update(dt, t, playing){
+    const e = playing ? energyAt(t) : 0;
+    const heat = T ? heatAt(t) : 0;
+    if (heat !== st.heat && playing && started){ if (heat > st.heat) msg(heat === 3 ? "AIR UNIT UP" : "HEAT " + heat, 900); st.heat = heat; }
+    st.heatF += (st.heat - st.heatF) * Math.min(1, dt * 1.5);
+    const dur = audio.duration || (T && T.seconds) || 1;
+    st.ending = playing && !audio.loop && dur - t < 6;
+    const want = playing ? 55 + 245 * e + (st.boost > 0 ? 60 : 0) : 0;
+    st.speed += (want - st.speed) * Math.min(1, dt * (playing ? 2.2 : 3));
+    st.x += st.speed * dt; st.dist += st.speed * dt / 1500;
+    st.boost = Math.max(0, st.boost - dt); st.bob = Math.max(0, st.bob - dt * 6); st.shake = Math.max(0, st.shake - dt * 10); st.flash = Math.max(0, st.flash - dt * 3);
+
+    if (playing && T){
+      const per = 60 / T.bpm, b = Math.floor((t - T.phase) / per);
+      if (b !== st.beat){ if (b > st.beat) onBeat(b, t); st.beat = b; }
+      while (st.ki < T.kicks.length && T.kicks[st.ki][0] <= t){ const s = T.kicks[st.ki][1]; if (s > 0.3){ st.bob = 1 + s; st.shake = Math.max(st.shake, s * 1.6); puff(st.px - 1, LANE[Math.round(st.laneF)] - 2, 2, ["#6a6478", "#4a4558"], 30, 0.6); } if (s > 0.82) st.boost = 0.25; st.ki++; }
+      while (st.hi < T.hits.length && T.hits[st.hi][0] <= t){ if (T.hits[st.hi][1] > 0.85) st.flash = 1; st.hi++; }
+    }
+
+    // player
+    const pxWant = st.got ? W + 80 : st.ending ? (dur - t < 2.2 ? W + 60 : 196) : 150 + e * 22;
+    st.px += (pxWant - st.px) * Math.min(1, dt * (st.ending ? 1.6 : 1.2));
+    const auto = performance.now() - st.lastInput > 5000;
+    $("auto").style.display = auto && playing ? "" : "none";
+    $("hint").style.display = auto ? "" : "none";
+    if (auto && playing){
+      const blocked = !laneFree(st.target, st.px - 4, st.px + 26 + 70 + st.speed * 0.15, st.traffic);
+      if (blocked){
+        const opts = [st.target - 1, st.target + 1].filter(l => l >= 0 && l <= 2 && laneFree(l, st.px - 10, st.px + 26 + 60, st.traffic));
+        if (opts.length){ st.target = opts.sort((a, b) => Math.abs(a - 1) - Math.abs(b - 1))[0]; st.lastSwitch = t; }
+      }
+    }
+    st.laneF += clamp(st.target - st.laneF, -dt * 7, dt * 7);
+
+    // traffic
+    for (const c of st.traffic){
+      c.x -= st.speed * (1 - c.own) * dt;
+      if (c.hit){ c.knock += dt; continue; }
+      if (playing && c.x < st.px + 25 && c.x + c.w > st.px + 1 && Math.abs(st.laneF - c.lane) < 0.45) crash(c, "player");
+      if (!c.passed && c.x + c.w < st.px){ c.passed = true; if (!c.hit && Math.abs(c.lane - st.laneF) < 1.3 && t - st.lastSwitch < 1.0 && performance.now() - st.lastInput < 5000){ st.near++; msg("CLOSE ONE", 600); } }
+    }
+    st.traffic = st.traffic.filter(c => c.x > -60 && c.knock < 1.2);
+
+    // police
+    const active = st.ending ? 0 : [1, 1, 2, 3][st.heat];
+    st.police.forEach((p, k) => {
+      let tx;
+      if (st.got) tx = p.x;
+      else if (!playing && !started) tx = st.px - 40 - k * 32 - (k ? 80 : 0);
+      else if (k < active) tx = st.px - 38 - k * 32 - (st.heat === 0 ? 46 : 0) - (1 - e) * 10 + Math.sin(t * 1.3 + k * 2) * 6;
+      else tx = -90 - k * 30;
+      p.x += (tx - p.x) * Math.min(1, dt * (playing ? 1.1 : 2));
+      if (k === 0) p.target = st.target; else p.target = clamp(st.target + (k === 1 ? -1 : 1), 0, 2);
+      if (!laneFree(p.target, p.x - 2, p.x + 70, st.traffic)) p.target = [0, 1, 2].find(l => laneFree(l, p.x - 2, p.x + 70, st.traffic)) ?? p.target;
+      p.laneF += clamp(p.target - p.laneF, -dt * 5, dt * 5);
+      for (const c of st.traffic) if (!c.hit && c.x < p.x + 27 && c.x + c.w > p.x + 1 && Math.abs(p.laneF - c.lane) < 0.45) crash(c, "police");
+    });
+    // helicopter
+    const hx = st.heat >= 3 && !st.ending && !st.got && playing ? st.px - 16 + Math.sin(t * 0.7) * 26 : -70;
+    st.heli.x += (hx - st.heli.x) * Math.min(1, dt * 0.8);
+    st.heli.y = 14 + Math.sin(t * 1.9) * 2;
+
+    for (const p of st.parts){ p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 40 * dt; p.life -= dt; }
+    st.parts = st.parts.filter(p => p.life > 0);
+  }
+
+  // ---------- drawing ----------
+  const mod = (a, n) => ((a % n) + n) % n;
+  function drawSky(t){
+    const gr = g.createLinearGradient(0, 0, 0, ROAD); gr.addColorStop(0, S.sky[0]); gr.addColorStop(0.65, S.sky[1]); gr.addColorStop(1, S.sky[2]);
+    g.fillStyle = gr; g.fillRect(0, 0, W, ROAD);
+    const rnd = seeded(3);
+    for (let i = 0; i < 40; i++){ const x = Math.floor(mod(rnd() * W * 2 - st.x * 0.02, W)), y = Math.floor(rnd() * 40); if ((i + Math.floor(t * 2)) % 7) { g.fillStyle = S.star; g.globalAlpha = 0.35 + rnd() * 0.5; g.fillRect(x, y, 1, 1); } }
+    g.globalAlpha = 1;
+    if (cur === 0){ g.fillStyle = "#e9dcff"; g.fillRect(250, 10, 6, 6); g.fillRect(249, 11, 8, 4); g.fillStyle = S.sky[0]; g.fillRect(252, 10, 5, 4); }
+    else { // radio mast, red light on the beat
+      const mx = Math.floor(mod(240 - st.x * 0.03, W + 40)) - 20; g.fillStyle = "#0d2229"; g.fillRect(mx, 14, 1, 52); for (let y = 18; y < 66; y += 6){ g.fillRect(mx - 2, y, 5, 1); }
+      if (mod(st.beat, 2) === 0){ g.fillStyle = "#ff3b3b"; g.fillRect(mx - 1, 12, 3, 2); }
+    }
+  }
+  function drawSkyline(e){
+    const off = st.x * 0.1, base = ROAD - 4;
+    for (const b of skyline){
+      const x = Math.floor(mod(b.x - off, skyW) - 20); if (x > W || x + b.w < 0) continue;
+      const y = base - b.h; g.fillStyle = S.city; g.fillRect(x, y, b.w, b.h);
+      if (b.ant){ g.fillRect(x + (b.w >> 1), y - 6, 1, 6); if (mod(st.beat, 2)){ g.fillStyle = "#ff3b3b"; g.fillRect(x + (b.w >> 1), y - 7, 1, 1); } }
+      const rnd = seeded(b.k + 1), lit = 0.12 + e * 0.55;
+      for (let wy = y + 3; wy < base - 2; wy += 4) for (let wx = x + 2; wx < x + b.w - 2; wx += 3){ const r = rnd(); if (r < lit){ g.fillStyle = r < 0.04 ? S.cityWin2 : S.cityWin; g.globalAlpha = 0.45 + r; g.fillRect(wx, wy, 1, 2); } }
+      g.globalAlpha = 1;
+    }
+  }
+  function glow(x, y, r, col, a){ const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, col); gr.addColorStop(1, "rgba(0,0,0,0)"); g.globalAlpha = a; g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); g.globalAlpha = 1; }
+  function drawTheatre(t){
+    const P = 340, off = st.x * 0.45, fl = st.flash, beat = st.beat;
+    for (let rep = -1; rep < 2; rep++){
+      const o = Math.floor(rep * P - mod(off, P));
+      // theatre
+      let x = o + 12; g.fillStyle = "#2a1838"; g.fillRect(x, 24, 86, 54); g.fillStyle = "#1c1028"; for (let i = 0; i < 5; i++) g.fillRect(x + 6 + i * 18, 56, 4, 22);
+      g.fillStyle = "#3a2350"; g.fillRect(x - 2, 24, 90, 3);
+      g.fillStyle = "#120818"; g.fillRect(x + 4, 40, 78, 12);
+      ptext(g, "THE FIRST ACT", x + 17, 44, "#ffcc66");
+      for (let i = 0; i < 40; i++){ const bx = i < 20 ? x + 4 + i * 4 : x + 4 + (i - 20) * 4, by = i < 20 ? 38 : 52; g.fillStyle = (i + beat) % 3 === 0 ? "#fff1b8" : "#6a4a20"; g.fillRect(bx, by, 2, 1); }
+      g.fillStyle = "#120818"; g.fillRect(x + 76, 2, 9, 46); ptextV(g, "THEATRE", x + 79, 4, fl > 0.5 && rep === 0 ? "#ffd1ea" : "#ff4fa3");
+      glow(x + 80, 24, 18, "rgba(255,79,163,.9)", 0.25);
+      glow(x + 43, 46, 34, "rgba(255,204,102,.8)", 0.22);
+      // lounge
+      x = o + 116; g.fillStyle = "#1c1530"; g.fillRect(x, 42, 60, 36); g.fillStyle = "#ffb34755"; g.fillRect(x + 6, 58, 18, 10); g.fillRect(x + 34, 58, 18, 10);
+      const on = !(fl > 0.3 && Math.random() < 0.3);
+      if (on){ ptext(g, "LOUNGE", x + 18, 48, "#38e1d0"); glow(x + 30, 50, 20, "rgba(56,225,208,.9)", 0.22); }
+      // hotel
+      x = o + 194; g.fillStyle = "#1a1229"; g.fillRect(x, 10, 44, 68);
+      const rnd = seeded(41 + rep); for (let wy = 14; wy < 74; wy += 5) for (let wx = x + 4; wx < x + 40; wx += 5) if (rnd() < 0.45){ g.fillStyle = "#ffb347"; g.globalAlpha = 0.5; g.fillRect(wx, wy, 2, 3); } g.globalAlpha = 1;
+      g.fillStyle = "#0c0714"; g.fillRect(x - 6, 14, 7, 32); ptextV(g, "HOTEL", x - 4, 16, "#ff4fa3"); glow(x - 2, 30, 14, "rgba(255,79,163,.9)", 0.2);
+      // diner
+      x = o + 262; g.fillStyle = "#24182f"; g.fillRect(x, 50, 66, 28);
+      for (let i = 0; i < 11; i++){ g.fillStyle = i % 2 ? "#e9e2f0" : "#c23a4a"; g.fillRect(x + i * 6, 50, 6, 4); }
+      ptext(g, "OPEN LATE", x + 15, 60, mod(beat, 4) === 3 ? "#ffd1d1" : "#ff5a5f"); glow(x + 33, 62, 22, "rgba(255,90,95,.9)", 0.18);
+      // street lamps on the kerb
+      for (let i = 0; i < 4; i++){ const lx = o + 4 + i * 85; g.fillStyle = "#2b2a3a"; g.fillRect(lx, 50, 1, 26); g.fillRect(lx - 1, 49, 3, 2); g.fillStyle = "#ffe6a8"; g.fillRect(lx - 1, 51, 3, 1); glow(lx, 52, 12, "rgba(255,214,140,.9)", 0.3); }
+    }
+  }
+  function drawFreeway(t){
+    // horizon glow
+    const gr = g.createLinearGradient(0, 40, 0, ROAD); gr.addColorStop(0, "rgba(255,120,40,0)"); gr.addColorStop(1, "rgba(255,120,40,.22)"); g.fillStyle = gr; g.fillRect(0, 40, W, ROAD - 40);
+    // billboards (mid layer)
+    const P = 360, off = st.x * 0.45;
+    for (let rep = -1; rep < 2; rep++){
+      const o = Math.floor(rep * P - mod(off, P));
+      let x = o + 40; g.fillStyle = "#0e1a1f"; g.fillRect(x + 8, 40, 2, 36); g.fillRect(x + 50, 40, 2, 36);
+      g.fillStyle = "#0b1418"; g.fillRect(x, 20, 60, 22); g.fillStyle = "#132a33"; g.fillRect(x + 2, 22, 56, 18);
+      const jit = st.flash > 0.4 ? Math.floor(Math.random() * 5) - 2 : 0;
+      ptext(g, "STATIC", x + 18 + jit, 25, "#6fe3ff"); ptext(g, "NOTHING STAYS", x + 4, 33, st.flash > 0.4 ? "#ffffff" : "#ffa63d");
+      glow(x + 30, 30, 30, "rgba(111,227,255,.8)", 0.16);
+      // overpass pillars + deck
+      x = o + 190; g.fillStyle = "#0c1a20"; g.fillRect(x, 34, 150, 8); g.fillRect(x + 20, 42, 8, 34); g.fillRect(x + 110, 42, 8, 34);
+      g.fillStyle = "#16303a"; g.fillRect(x, 34, 150, 1);
+      for (let i = 0; i < 10; i++){ const lx = x + 6 + i * 15; g.fillStyle = (i + st.beat) % 5 === 0 ? "#ffd08a" : "#a8682a"; g.fillRect(lx, 33, 2, 1); }
+    }
+    // sodium lamps along the barrier (road speed)
+    const LP = 64, lo = mod(st.x, LP);
+    for (let lx = -lo; lx < W + LP; lx += LP){
+      const x = Math.floor(lx); g.fillStyle = "#2a2e2a"; g.fillRect(x, 44, 1, 32); g.fillRect(x, 44, 7, 1); g.fillStyle = "#ffcf7a"; g.fillRect(x + 6, 45, 2, 1);
+      glow(x + 7, 46, 14, "rgba(255,166,61,.95)", 0.35);
+    }
+    // overhead sign every so often
+    const SP = 520, so = Math.floor(mod(-st.x, SP)) - 40;
+    g.fillStyle = "#2a2e2a"; g.fillRect(so, 22, 1, 54); g.fillStyle = "#1f6b45"; g.fillRect(so + 2, 22, 56, 16); g.fillStyle = "#e8f2ea"; g.fillRect(so + 2, 22, 56, 1);
+    ptext(g, "NORTH", so + 6, 25, "#ffffff"); ptext(g, "EXIT 9 >", so + 6, 31, "#ffffff"); ptext(g, "CITY", so + 38, 25, "#ffffff");
+  }
+  function drawRoad(t){
+    const o = mod(st.x, 16);
+    for (let x = -o; x < W; x += 16){ g.fillStyle = S.kerb[0]; g.fillRect(Math.floor(x), ROAD - 4, 8, 4); g.fillStyle = S.kerb[1]; g.fillRect(Math.floor(x) + 8, ROAD - 4, 8, 4); }
+    g.fillStyle = S.road; g.fillRect(0, ROAD, W, 117 - ROAD);
+    // wet reflections / lamp pools
+    if (cur === 0){
+      const P = 340, off = st.x * 0.45;
+      for (let rep = -1; rep < 2; rep++){ const oo = rep * P - mod(off, P);
+        [[oo + 55, "rgba(255,204,102,.10)", 30], [oo + 92, "rgba(255,79,163,.10)", 6], [oo + 146, "rgba(56,225,208,.09)", 20], [oo + 190, "rgba(255,79,163,.09)", 5], [oo + 295, "rgba(255,90,95,.08)", 22]].forEach(([x, c, w]) => { g.fillStyle = c; for (let y = ROAD + 2; y < 116; y += 2) g.fillRect(Math.floor(x - w / 2 + Math.sin(y * 0.7 + t * 3) * 1.5), y, w, 1); });
+      }
+    } else {
+      const LP = 64, lo = mod(st.x, LP);
+      for (let lx = -lo; lx < W + LP; lx += LP){ const x = Math.floor(lx) + 7; for (let y = ROAD; y < 117; y += 1){ const k = 1 - (y - ROAD) / 39, w = 6 + (y - ROAD) * 0.9; g.fillStyle = `rgba(255,166,61,${0.09 * k})`; g.fillRect(Math.floor(x - w / 2), y, Math.ceil(w), 1); } }
+    }
+    for (const y of [91, 104]) for (let x = -mod(st.x, 18); x < W; x += 18){ g.fillStyle = S.dash; g.fillRect(Math.floor(x), y, 9, 1); }
+    g.fillStyle = S.kerb[0]; g.fillRect(0, 117, W, 3); g.fillStyle = S.pave; g.fillRect(0, 120, W, 8);
+    for (let x = -mod(st.x, 12); x < W; x += 12){ g.fillStyle = "rgba(255,255,255,.05)"; g.fillRect(Math.floor(x), 120, 1, 8); }
+  }
+  function wheel(cx, cy, ph){ g.fillStyle = "#0b0a10"; g.fillRect(cx - 1, cy - 2, 3, 5); g.fillRect(cx - 2, cy - 1, 5, 3); g.fillStyle = "#3a3846"; g.fillRect(cx - 1, cy - 1, 3, 3); g.fillStyle = ph ? "#9a98a8" : "#5a5868"; g.fillRect(cx, cy, 1, 1); }
+  function car(rowsKind, pal, key, x, laneF, bob, opts = {}){
+    const k = KINDS[rowsKind], base = Math.round(LANE[0] + (LANE[1] - LANE[0]) * laneF) + (opts.drop || 0);
+    const y = base - k.h + 1 - (bob > 0.5 ? 1 : 0), ix = Math.round(x);
+    // shadow
+    g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(ix + 1, base + 2, k.w - 2, 2);
+    if (opts.beam){ for (let i = 0; i < 44; i++){ const s = Math.floor(i / 4); g.fillStyle = `rgba(255,243,160,${0.11 * (1 - i / 44)})`; g.fillRect(ix + k.w + i, base - 3 - (s >> 1), 1, 2 + s); } }
+    if (opts.blink && (Math.floor(performance.now() / 70) % 2)) return;
+    g.drawImage(spr(k.rows, pal, key), ix, y);
+    const ph = Math.floor(st.x / 3) % 2;
+    for (const wx of k.wheels) wheel(ix + wx, base, ph);
+    return { y, base, ix };
+  }
+  function drawCars(t, playing){
+    const list = [];
+    st.traffic.forEach(c => list.push({ z: c.lane + (c.hit ? c.knock * 2 : 0), f: () => {
+      const pal = Object.assign({}, BASE, PAL.traffic[c.pal]); car(c.kind, pal, "t" + c.kind + "_" + c.pal, c.x, c.lane, 0, { drop: Math.floor(c.knock * c.knock * 30), blink: c.hit }); } }));
+    st.police.forEach((p, k) => { if (p.x < -40) return; list.push({ z: p.laneF + 0.01, f: () => {
+      const r = car(0, PAL.police, "police", p.x, p.laneF, st.bob * (k === 0 ? 1 : 0.5), { beam: true }); if (!r) return;
+      const half = Math.floor(((t - (T ? T.phase : 0)) / (T ? 60 / T.bpm : 0.6)) * 2) % 2, sp = started && playing ? half : Math.floor(performance.now() / 300) % 2;
+      g.fillStyle = sp ? "#ff2d2d" : "#5a0f0f"; g.fillRect(r.ix + 11, r.y - 1, 3, 1); g.fillStyle = sp ? "#1f3a8a" : "#3d7bff"; g.fillRect(r.ix + 14, r.y - 1, 3, 1);
+      glow(r.ix + (sp ? 12 : 15), r.y - 1, 14, sp ? "rgba(255,45,45,.9)" : "rgba(61,123,255,.9)", 0.35); } }); });
+    list.push({ z: st.laneF + 0.02, f: () => {
+      const r = car(1, PAL.player, "player", st.px, st.laneF, st.bob, { beam: true });
+      if (r && st.boost > 0 && !still){ g.fillStyle = "#ffb347"; g.fillRect(r.ix - 3, r.base - 3, 3, 1); g.fillStyle = "#fff3a0"; g.fillRect(r.ix - 2, r.base - 3, 2, 1); }
+    } });
+    list.sort((a, b) => a.z - b.z).forEach(o => o.f());
+  }
+  function drawHeli(t){
+    if (st.heli.x < -40) return;
+    const x = Math.round(st.heli.x), y = Math.round(st.heli.y), base = Math.round(LANE[0] + (LANE[1] - LANE[0]) * st.laneF);
+    g.globalAlpha = 0.11 + 0.05 * Math.sin(t * 6); g.fillStyle = "#e8f6ff";
+    g.beginPath(); g.moveTo(x + 9, y + 6); g.lineTo(st.px - 6, base + 3); g.lineTo(st.px + 34, base + 3); g.closePath(); g.fill(); g.globalAlpha = 1;
+    g.drawImage(spr(HELI, PAL.heli, "heli"), x, y);
+    g.fillStyle = "#8a8fa0"; const rot = Math.floor(performance.now() / 50) % 2; g.fillRect(x + (rot ? 0 : 4), y - 1, rot ? 20 : 12, 1); g.fillRect(x - 1, y + 1 + rot, 1, 2);
+    if (Math.floor(performance.now() / 400) % 2){ g.fillStyle = "#ff3b3b"; g.fillRect(x + 1, y + 2, 1, 1); }
+  }
+  function drawParts(){ for (const p of st.parts){ g.globalAlpha = Math.max(0, p.life / p.max); g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); } g.globalAlpha = 1; }
+
+  function drawGame(t, playing){
+    g.save();
+    if (st.shake > 0.2 && !still) g.translate(Math.round((Math.random() - 0.5) * st.shake), Math.round((Math.random() - 0.5) * st.shake));
+    const e = playing ? energyAt(t) : 0.25;
+    drawSky(t); drawSkyline(e);
+    if (cur === 0) drawTheatre(t); else drawFreeway(t);
+    drawRoad(t); drawCars(t, playing); drawParts(); drawHeli(t);
+    if (!still && st.heatF > 1.5 && playing){ const sp = mod(st.beat, 2); g.fillStyle = sp ? "rgba(255,40,40,1)" : "rgba(60,110,255,1)"; g.globalAlpha = 0.05 * (st.heatF - 1.5); g.fillRect(0, 0, W, H); g.globalAlpha = 1; }
+    // speed streaks
+    if (!still && st.speed > 200){ g.fillStyle = "rgba(255,255,255,.18)"; const rnd = seeded(Math.floor(st.x / 40)); for (let i = 0; i < 6; i++) g.fillRect(Math.floor(rnd() * W), ROAD + Math.floor(rnd() * 38), 8 + Math.floor(rnd() * 14), 1); }
+    g.restore();
+  }
+
+  function drawRoute(t){
+    const w = 304, h = 22; r2.clearRect(0, 0, w, h); r2.fillStyle = "#0b0a13"; r2.fillRect(0, 0, w, h);
+    if (!T) return;
+    const dur = audio.duration || T.seconds, ph = clamp(t / dur, 0, 1), n = T.peaks.length, bw = (w - 4) / n;
+    for (let i = 0; i < n; i++){
+      const x = 2 + Math.floor(i * bw), bh = 1 + Math.round(T.peaks[i] * 12), played = (i + 0.5) / n < ph;
+      const hc = HEATCOL[heatAt((i + 0.5) / n * T.seconds)];
+      r2.fillStyle = played ? hc : "#2a2640"; r2.fillRect(x, 15 - bh, Math.max(1, Math.floor(bw) - 1), bh);
+    }
+    for (const s of T.heat){ const x0 = 2 + Math.floor(s[0] / T.seconds * (w - 4)); r2.fillStyle = HEATCOL[s[1]]; r2.globalAlpha = 0.55; r2.fillRect(x0, 18, w - x0, 2); }
+    r2.globalAlpha = 1;
+    const px = 2 + Math.round(ph * (w - 4));
+    r2.fillStyle = "#d8323c"; r2.fillRect(px - 2, 15, 5, 3); r2.fillStyle = "#fff3a0"; r2.fillRect(px + 2, 16, 1, 1);
+    if (started && T && st.heat > 0){ r2.fillStyle = Math.floor(performance.now() / 250) % 2 ? "#ff2d2d" : "#3d7bff"; r2.fillRect(px - 6, 16, 2, 2); }
+    r2.fillStyle = "#fff"; r2.globalAlpha = 0.6; r2.fillRect(px, 0, 1, 14); r2.globalAlpha = 1;
+    $("routeBox").setAttribute("aria-valuenow", Math.round(ph * 100));
+  }
+
+  // ---------- UI ----------
+  function setStatus(html){ $("status").innerHTML = html; }
+  function render(){
+    const on = !audio.paused; $("big").classList.toggle("on", on); $("big").setAttribute("aria-label", on ? "Pause" : "Play");
+    if (!on && started && !audio.ended && audio.currentTime > 0) setStatus("<b>HOLD</b> · paused");
+  }
+  function hud(t, playing){
+    $("speedo").textContent = String(Math.round(st.speed * 0.62)).padStart(3, "0") + " KM/H";
+    $("heat").querySelectorAll("i").forEach((el, i) => el.classList.toggle("on", started && i <= st.heat && (st.heat > 0 || i === 0)));
+    if (T) $("time").innerHTML = `${fmt(t)} <small>/ ${fmt(audio.duration || T.seconds)}</small>`;
+    if (playing && T) setStatus(`<b>${st.ending ? "LAST STRETCH" : "LIVE"}</b> · ${st.ending ? S.end : S.lines[st.heat]}`);
+  }
+  function meta(){
+    $("sub").textContent = `Rob Cawley · stage ${cur + 1}: ${S.name.toLowerCase()} · ${T.bpm} BPM`;
+    $("code").innerHTML = S.code;
+    document.querySelectorAll(".tab").forEach((b, i) => { b.classList.toggle("on", i === cur); b.setAttribute("aria-pressed", i === cur); });
+  }
+  function load(i, go){
+    cur = i; T = data.tracks[i]; S = STAGES[i]; document.body.className = "s" + (i + 1);
+    const wasLoop = audio.loop; audio.src = T.file; audio.loop = wasLoop;
+    st = fresh(); buildSkyline(); meta(); advanceAt = 0;
+    if (go) play(); else { setStatus("<b>STANDBY</b> · press play to start the chase"); msg("PRESS PLAY", 0, true); }
+    drawRoute(0);
+  }
+  function play(){ audio.play().then(() => { if (!started){ started = true; } hideMsg(); msg(cur === 0 ? "GO" : "STAGE 2", 800); }).catch(() => {}); }
+  function toggle(){ if (audio.paused) play(); else audio.pause(); }
+  function steer(d){ st.lastInput = performance.now(); const n = clamp(st.target + d, 0, 2); if (n !== st.target){ st.target = n; st.lastSwitch = audio.currentTime; } }
+
+  function seekAt(clientX){
+    if (!T) return;
+    const r = rc.getBoundingClientRect(), f = clamp((clientX - r.left) / r.width, 0, 1);
+    const go = () => { audio.currentTime = f * (audio.duration || T.seconds); };
+    if (audio.readyState < 1){ audio.addEventListener("loadedmetadata", go, { once: true }); play(); } else { go(); if (audio.paused) play(); }
+  }
+  function resync(t){ st.got = false; st.ki = bsearch(T.kicks, t); st.hi = bsearch(T.hits, t); st.beat = Math.floor((t - T.phase) / (60 / T.bpm)); st.traffic = []; st.heat = heatAt(t); st.heatF = st.heat; }
+
+  function tick(now){
+    const dt = Math.min(0.05, (now - lastNow) / 1000); lastNow = now;
+    const playing = !audio.paused && !audio.ended, t = audio.currentTime || 0;
+    if (T){
+      if (Math.abs(t - st.lastT) > 1.0) resync(t);
+      st.lastT = t;
+      update(dt, t, playing); drawGame(t, playing); drawRoute(t); hud(t, playing);
+      if (advanceAt && now > advanceAt){ advanceAt = 0; load(cur + 1, true); }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- events ----------
+  $("routeBox").addEventListener("pointerdown", e => { dragging = true; $("routeBox").setPointerCapture(e.pointerId); seekAt(e.clientX); });
+  $("routeBox").addEventListener("pointermove", e => { if (dragging) seekAt(e.clientX); });
+  $("routeBox").addEventListener("pointerup", () => dragging = false);
+  cv.addEventListener("pointerdown", e => {
+    if (audio.paused){ play(); return; }
+    const r = cv.getBoundingClientRect(), y = (e.clientY - r.top) / r.height * H, base = LANE[0] + (LANE[1] - LANE[0]) * st.laneF;
+    steer(y < base - 6 ? -1 : y > base + 4 ? 1 : 0);
+  });
+  audio.addEventListener("play", () => { st.got = false; render(); }); audio.addEventListener("pause", render);
+  audio.addEventListener("ended", () => {
+    render(); st.got = true; msg("GOT AWAY", 2200);
+    setStatus(`<b>END</b> · ${S.end}`);
+    if (cur < data.tracks.length - 1){ advanceAt = performance.now() + 2400; setStatus(`<b>END</b> · ${S.end} · stage 2 next`); }
+  });
+  audio.addEventListener("error", () => setStatus('<span class="err">Couldn\'t load the track. Check your connection and try again.</span>'));
+  $("big").onclick = toggle;
+  $("loop").onchange = e => { audio.loop = e.target.checked; };
+  $("vol").oninput = e => { audio.volume = +e.target.value; };
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" || !T) return;
+    if (e.code === "Space"){ e.preventDefault(); toggle(); }
+    else if (e.key === "ArrowUp" || e.key === "w" || e.key === "W"){ e.preventDefault(); steer(-1); }
+    else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S"){ e.preventDefault(); steer(1); }
+    else if (e.key === "ArrowRight"){ e.preventDefault(); audio.currentTime = Math.min((audio.duration || 0) - 0.5, audio.currentTime + 10); }
+    else if (e.key === "ArrowLeft"){ e.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 10); }
+    else if (e.key === "1" || e.key === "2"){ const i = +e.key - 1; if (i !== cur && data.tracks[i]) load(i, !audio.paused); }
+  });
+
+  fetch("tracks.json").then(r => r.json()).then(d => {
+    data = d;
+    $("tabs").innerHTML = d.tracks.map((t, i) => `<button class="tab" type="button" data-i="${i}"><b>${t.num}</b>${t.title} · ${fmt(t.seconds).replace(/^0/, "")}</button>`).join("");
+    document.querySelectorAll(".tab").forEach(b => b.onclick = () => { const i = +b.dataset.i; if (i !== cur) load(i, started && !audio.paused); });
+    load(0, false); requestAnimationFrame(tick);
+  }).catch(() => setStatus('<span class="err">Couldn\'t load the tracks. Reload the page to try again.</span>'));
+})();
+</script>
+</body>
+</html>
